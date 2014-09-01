@@ -162,6 +162,12 @@ int bus_space_debug = 0;
 struct vm_map *exec_map = NULL;
 extern vaddr_t avail_end;
 
+#ifdef LKM
+vaddr_t lkm_start, lkm_end;
+static struct vm_map lkm_map_store;
+extern struct vm_map *lkm_map;
+#endif
+
 /*
  * Declare these as initialized data so we can patch them.
  */
@@ -278,6 +284,13 @@ cpu_startup()
 
 #if 0
 	pmap_redzone();
+#endif
+
+#ifdef LKM
+	/* lkm_map should not be marked pageable */
+	uvm_map_setup(&lkm_map_store, lkm_start, lkm_end, 0);
+	lkm_map_store.pmap = pmap_kernel();
+	lkm_map = &lkm_map_store;
 #endif
 }
 

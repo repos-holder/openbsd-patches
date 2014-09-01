@@ -577,6 +577,9 @@ pmap_bootstrap(kernelstart, kernelend, maxctx, numcpus)
 	u_long kernelstart, kernelend;
 	u_int maxctx, numcpus;
 {
+#ifdef LKM
+	extern vaddr_t lkm_start, lkm_end;
+#endif
 	extern int data_start[], end[];	/* start of data segment */
 	extern int msgbufmapped;
 	struct mem_region *mp, *mp1;
@@ -1450,6 +1453,14 @@ remap_data:
 	}
 
 	vmmap = (vaddr_t)reserve_dumppages((caddr_t)(u_long)vmmap);
+#ifdef LKM
+	/* Reserve 16 Mb of VA for LKM load. The room is high enough, since
+	 * GENERIC kernel is just about 6 Mb, otherwise please bump KERNEND
+	 * and friends in arch's param.h */
+	lkm_start = vmmap;
+	vmmap += 16 * 1024*1024;
+	lkm_end = vmmap;
+#endif
 	/*
 	 * Set up bounds of allocatable memory for vmstat et al.
 	 */
