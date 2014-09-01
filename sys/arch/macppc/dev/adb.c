@@ -1662,7 +1662,12 @@ adbattach(struct device *parent, struct device *self, void *aux)
 	}
 
 	adb_polling = 1;
-	adb_reinit();
+	/* we don't need to send anything for machines without adb,
+	 * or it will poweroff machine during boot */
+	if (!adbempty) 
+		adb_reinit();
+	else
+		printf_intr("\n");
 
 	mac_intr_establish(parent, ca->ca_intr[0], IST_LEVEL, IPL_HIGH,
 	    adb_intr, sc, sc->sc_dev.dv_xname);
@@ -1671,35 +1676,37 @@ adbattach(struct device *parent, struct device *self, void *aux)
 	time_read = adb_read_date_time;
 	time_write = adb_set_date_time;
 
+        if (!adbempty) {
 #ifdef ADB_DEBUG
-	if (adb_debug)
-		printf("adb: done with adb_reinit\n");
+		if (adb_debug)
+			printf("adb: done with adb_reinit\n");
 #endif
-	totaladbs = count_adbs();
+		totaladbs = count_adbs();
 
-	printf(" irq %d: %s, %d target%s\n", ca->ca_intr[0], ca->ca_name,
-	    totaladbs, (totaladbs == 1) ? "" : "s");
+		printf(" irq %d: %s, %d target%s\n", ca->ca_intr[0], ca->ca_name,
+	    	    totaladbs, (totaladbs == 1) ? "" : "s");
 
-	/* for each ADB device */
-	for (adbindex = 1; adbindex <= totaladbs; adbindex++) {
-		/* Get the ADB information */
-		adbaddr = get_ind_adb_info(&adbdata, adbindex);
+		/* for each ADB device */
+		for (adbindex = 1; adbindex <= totaladbs; adbindex++) {
+			/* Get the ADB information */
+			adbaddr = get_ind_adb_info(&adbdata, adbindex);
 
-		aa_args.origaddr = adbdata.origADBAddr;
-		aa_args.adbaddr = adbaddr;
-		aa_args.handler_id = adbdata.devType;
+			aa_args.origaddr = adbdata.origADBAddr;
+			aa_args.adbaddr = adbaddr;
+			aa_args.handler_id = adbdata.devType;
 
-		(void)config_found(self, &aa_args, adbprint);
-	}
+			(void)config_found(self, &aa_args, adbprint);
+		}
 
 #if NAPM > 0
-	/* Magic for signalling the apm driver to match. */
-	aa_args.origaddr = ADBADDR_APM;
-	aa_args.adbaddr = ADBADDR_APM;
-	aa_args.handler_id = ADBADDR_APM;
+		/* Magic for signalling the apm driver to match. */
+		aa_args.origaddr = ADBADDR_APM;
+		aa_args.adbaddr = ADBADDR_APM;
+		aa_args.handler_id = ADBADDR_APM;
 
-	(void)config_found(self, &aa_args, NULL);
+		(void)config_found(self, &aa_args, NULL);
 #endif
+	}
 
 	/* Attach I2C controller. */
 	for (node = OF_child(ca->ca_node); node; node = OF_peer(node)) {
@@ -1716,8 +1723,9 @@ adbattach(struct device *parent, struct device *self, void *aux)
 		adb_cuda_fileserver_mode();
 	if (adbHardware == ADB_HW_PMU)
 		pmu_fileserver_mode(1);
-
-	if (adbHardware == ADB_HW_CUDA)
-		adb_cuda_autopoll();
+        
+	if (!adbempty)
+		if (adbHardware == ADB_HW_CUDA)
+			adb_cuda_autopoll();
 	adb_polling = 0;
 }

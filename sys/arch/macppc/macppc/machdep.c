@@ -91,6 +91,7 @@
  * Global variables used here and there
  */
 extern struct user *proc0paddr;
+extern int adbempty;
 struct pool ppc_vecpl;
 
 /*
@@ -942,9 +943,12 @@ boot(int howto)
 		doshutdownhooks();
 		if ((howto & RB_POWERDOWN) == RB_POWERDOWN) {
 #if NADB > 0
-			delay(1000000);
-			adb_poweroff();
-			printf("WARNING: adb powerdown failed!\n");
+			/* We don't need this for machines without adb */
+			if(!adbempty) {
+				delay(1000000);
+				adb_poweroff();
+				printf("WARNING: adb powerdown failed!\n");
+			}
 #endif
 			OF_interpret("shut-down", 0);
 		}
@@ -958,7 +962,9 @@ boot(int howto)
 	printf("rebooting\n\n");
 
 #if NADB > 0
-	adb_restart();  /* not return */
+	/* We don't need this too. In addition it'll remove reboot prevention. */ 
+	if(!adbempty)
+		adb_restart();  /* not return */
 #endif
 
 	OF_interpret("reset-all", 0);
