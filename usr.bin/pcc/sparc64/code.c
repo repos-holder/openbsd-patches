@@ -57,11 +57,13 @@ defloc(struct symtab *sp)
 	if ((name = sp->soname) == NULL)
 		name = exname(sp->sname);
 
+#ifndef GCC_COMPAT
 	if (!ISFTN(t)) {
 		printf("\t.type %s,#object\n", name);
 		printf("\t.size %s," CONFMT "\n", name,
 			tsize(sp->stype, sp->sdf, sp->sap) / SZCHAR);
 	}
+#endif
 	if (sp->sclass == EXTDEF)
 		printf("\t.global %s\n", name);
 	if (sp->slevel == 0) {
