@@ -128,7 +128,6 @@
 #include <dev/ic/dcreg.h>
 
 int dc_intr(void *);
-void dc_shutdown(void *);
 void dc_power(int, void *);
 struct dc_type *dc_devtype(void *);
 int dc_newbuf(struct dc_softc *, int, struct mbuf *);
@@ -1854,7 +1853,6 @@ hasmac:
 	if_attach(ifp);
 	ether_ifattach(ifp);
 
-	sc->sc_dhook = shutdownhook_establish(dc_shutdown, sc);
 	sc->sc_pwrhook = powerhook_establish(dc_power, sc);
 
 fail:
@@ -3147,6 +3145,7 @@ dc_stop(sc)
 	struct dc_softc *sc;
 {
 	struct ifnet *ifp;
+	u_int32_t isr;
 	int i;
 
 	ifp = &sc->sc_arpcom.ac_if;
@@ -3157,6 +3156,21 @@ dc_stop(sc)
 	ifp->if_flags &= ~(IFF_RUNNING | IFF_OACTIVE);
 
 	DC_CLRBIT(sc, DC_NETCFG, (DC_NETCFG_RX_ON|DC_NETCFG_TX_ON));
+	
+	for (i = 0; i < DC_TIMEOUT; i++) {
+		isr = CSR_READ_4(sc, DC_ISR);
+		if ((isr & DC_ISR_TX_IDLE ||
+			(isr & DC_ISR_TX_STATE) == DC_TXSTATE_RESET) &&
+			(isr & DC_ISR_RX_STATE) == DC_RXSTATE_STOPPED)
+			    break;
+		DELAY(10);
+	}
+	
+	if (i == DC_TIMEOUT && !((isr & DC_ISR_RX_STATE) == DC_RXSTATE_STOPPED) &&
+	    !DC_HAS_BROKEN_RXSTATE(sc))
+		printf("%s: failed to force rx to idle state\n",
+		    sc->sc_dev.dv_xname);
+		    
 	CSR_WRITE_4(sc, DC_IMR, 0x00000000);
 	CSR_WRITE_4(sc, DC_TXADDR, 0x00000000);
 	CSR_WRITE_4(sc, DC_RXADDR, 0x00000000);
@@ -3208,19 +3222,6 @@ dc_stop(sc)
 	bus_dmamap_sync(sc->sc_dmat, sc->sc_listmap,
 	    0, sc->sc_listmap->dm_mapsize,
 	    BUS_DMASYNC_PREREAD | BUS_DMASYNC_PREWRITE);
-}
-
-/*
- * Stop all chip I/O so that the kernel's probe routines don't
- * get confused by errant DMAs when rebooting.
- */
-void
-dc_shutdown(v)
-	void *v;
-{
-	struct dc_softc *sc = (struct dc_softc *)v;
-
-	dc_stop(sc);
 }
 
 void
