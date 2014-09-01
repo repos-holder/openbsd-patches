@@ -54,10 +54,16 @@ add_new_alias() {
 	fi
 }
 
+delete_default() {
+    # instead of excess 1.129 commit to sbin/route/route.c
+    gateway=`netstat -f inet -rn | grep default | grep $interface | awk '{print $2}'`
+    if [ "$gateway" != "" ]; then
+	route delete default $gateway >/dev/null 2>&1
+    fi
+}
+
 delete_old_routes() {
-	# Delete existing default route. We only allow one, so no need to
-	# process $old_routers list.
-	route delete default >/dev/null 2>&1
+	delete_default
 
 	if [ -n "$old_static_routes" ]; then
 		set $old_static_routes
@@ -71,13 +77,20 @@ delete_old_routes() {
 }
 
 add_new_routes() {
-	route delete default >/dev/null 2>&1
+	delete_default
+	arg_list=""
+	if [ "$priority" != "" ]; then
+	    arg_list="-priority $priority"
+	fi
 	for router in $new_routers; do
 		if [ "$new_ip_address" = "$router" ]; then
-			route add default -iface $router >/dev/null 2>&1
+			route add $arg_list default -iface $router >/dev/null 2>&1
 		else
-			route add default $router >/dev/null 2>&1
+			route add $arg_list default $router >/dev/null 2>&1
 		fi
+		# update next hop for pf's route-to/reply-to rules
+		pfctl -t gw_$interface -T flush
+		pfctl -t gw_$interface -T add $router
 		# 2nd and subsequent default routers error out, so explicitly
 		# stop processing the list after the first one.
 		break

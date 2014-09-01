@@ -71,6 +71,10 @@
 #define	LOCAL_PORT	68
 #define	REMOTE_PORT	67
 
+#define INTERFACE_DECL 1
+
+u_char priority;
+
 struct option {
 	char *name;
 	char *format;
@@ -236,6 +240,7 @@ char *parse_string(FILE *);
 int parse_ip_addr(FILE *, struct iaddr *);
 void parse_hardware_param(FILE *, struct hardware *);
 void parse_lease_time(FILE *, time_t *);
+void parse_gateway_priority(FILE *);
 int parse_numeric_aggregate(FILE *, unsigned char *, int, int, int);
 void convert_num(unsigned char *, char *, int, int);
 time_t parse_date(FILE *);
@@ -317,7 +322,7 @@ int	 priv_script_go(void);
 void script_init(char *, struct string_list *);
 void script_write_params(char *, struct client_lease *);
 int script_go(void);
-void script_set_env(const char *, const char *, const char *);
+void script_set_env(const char *, const char *, const char *, int);
 void script_flush_env(void);
 int dhcp_option_ev_name(char *, size_t, const struct option *);
 
@@ -337,7 +342,7 @@ ssize_t decode_udp_ip_header(unsigned char *, int, struct sockaddr_in *,
 /* clparse.c */
 int read_client_conf(void);
 void read_client_leases(void);
-void parse_client_statement(FILE *);
+void parse_client_statement(FILE *, int);
 int parse_X(FILE *, u_int8_t *, int);
 int parse_option_list(FILE *, u_int8_t *);
 void parse_interface_declaration(FILE *);

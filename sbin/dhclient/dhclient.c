@@ -1610,12 +1610,14 @@ priv_script_init(char *reason, char *medium)
 
 	client->scriptEnv[1] = NULL;
 
-	script_set_env("", "interface", ifi->name);
+	script_set_env("", "interface", ifi->name, 0);
+	if (priority)
+		script_set_env("", "priority", NULL, priority);
 
 	if (medium)
-		script_set_env("", "medium", medium);
+		script_set_env("", "medium", medium, 0);
 
-	script_set_env("", "reason", reason);
+	script_set_env("", "reason", reason, 0);
 }
 
 void
@@ -1623,9 +1625,8 @@ priv_script_write_params(char *prefix, struct client_lease *lease)
 {
 	u_int8_t dbuf[1500];
 	int i, len = 0;
-	char tbuf[128];
 
-	script_set_env(prefix, "ip_address", piaddr(lease->address));
+	script_set_env(prefix, "ip_address", piaddr(lease->address), 0);
 
 	if (lease->options[DHO_SUBNET_MASK].len &&
 	    (lease->options[DHO_SUBNET_MASK].len <
@@ -1639,22 +1640,22 @@ priv_script_write_params(char *prefix, struct client_lease *lease)
 		subnet = subnet_number(lease->address, netmask);
 		if (subnet.len) {
 			script_set_env(prefix, "network_number",
-			    piaddr(subnet));
+			    piaddr(subnet), 0);
 			if (!lease->options[DHO_BROADCAST_ADDRESS].len) {
 				broadcast = broadcast_addr(subnet, netmask);
 				if (broadcast.len)
 					script_set_env(prefix,
 					    "broadcast_address",
-					    piaddr(broadcast));
+					    piaddr(broadcast), 0);
 			}
 		}
 	}
 
 	if (lease->filename)
-		script_set_env(prefix, "filename", lease->filename);
+		script_set_env(prefix, "filename", lease->filename, 0);
 	if (lease->server_name)
 		script_set_env(prefix, "server_name",
-		    lease->server_name);
+		    lease->server_name, 0);
 	for (i = 0; i < 256; i++) {
 		u_int8_t *dp = NULL;
 
@@ -1722,11 +1723,10 @@ supersede:
 			if (dhcp_option_ev_name(name, sizeof(name),
 			    &dhcp_options[i]))
 				script_set_env(prefix, name,
-				    pretty_print_option(i, dp, len, 0, 0));
+				    pretty_print_option(i, dp, len, 0, 0), 0);
 		}
 	}
-	snprintf(tbuf, sizeof(tbuf), "%d", (int)lease->expiry);
-	script_set_env(prefix, "expiry", tbuf);
+	script_set_env(prefix, "expiry", NULL, lease->expiry);
 }
 
 void
@@ -1840,7 +1840,7 @@ priv_script_go(void)
 }
 
 void
-script_set_env(const char *prefix, const char *name, const char *value)
+script_set_env(const char *prefix, const char *name, const char *value, int number)
 {
 	int i, j, namelen;
 
@@ -1877,21 +1877,29 @@ script_set_env(const char *prefix, const char *name, const char *value)
 	}
 	/* Allocate space and format the variable in the appropriate slot. */
 	client->scriptEnv[i] = malloc(strlen(prefix) + strlen(name) + 1 +
-	    strlen(value) + 1);
+	     (value ? strlen(value) + 1 : 0) + (number ? sizeof(int)*8 + 1 : 0));
 	if (client->scriptEnv[i] == NULL)
 		error("script_set_env: no memory for variable assignment");
 
 	/* No `` or $() command substitution allowed in environment values! */
-	for (j = 0; j < strlen(value); j++)
-		switch (value[j]) {
-		case '`':
-		case '$':
-			error("illegal character (%c) in value '%s'", value[j],
-			    value);
-			/* not reached */
-		}
-	snprintf(client->scriptEnv[i], strlen(prefix) + strlen(name) +
-	    1 + strlen(value) + 1, "%s%s=%s", prefix, name, value);
+	if (value && !number) {
+		for (j = 0; j < strlen(value); j++)
+			switch (value[j]) {
+			case '`':
+			case '$':
+				error("illegal character (%c) in value '%s'", value[j],
+			    	value);
+				/* not reached */
+			}
+		snprintf(client->scriptEnv[i], strlen(prefix) + strlen(name) +
+	    		1 + strlen(value) + 1, "%s%s=%s", prefix, name, value);
+	} else if (!value && number)
+		snprintf(client->scriptEnv[i], strlen(prefix) + strlen(name) +
+			1 + sizeof(int)*8 + 1, "%s%s=%d", prefix, name, number);
+	else if (value && number)
+		snprintf(client->scriptEnv[i], strlen(prefix) + strlen(name) +
+			1 + strlen(value) + sizeof(int)*8 + 2, "%s%s%d=%s",
+			prefix, name, number, value);
 }
 
 void

@@ -326,6 +326,7 @@ static const struct keywords {
 	{ "fddi",				TOK_FDDI },
 	{ "filename",				TOK_FILENAME },
 	{ "fixed-address",			TOK_FIXED_ADDR },
+	{ "gateway-priority",			TOK_GATEWAY_PRIORITY },
 	{ "hardware",				TOK_HARDWARE },
 	{ "initial-interval",			TOK_INITIAL_INTERVAL },
 	{ "interface",				TOK_INTERFACE },

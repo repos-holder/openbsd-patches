@@ -46,6 +46,8 @@ static const char rcsid[] = "$ABSD$";
 #include "dhcpd.h"
 #include "dhctoken.h"
 
+#include <net/route.h>
+
 /*
  * client-conf-file :== client-declarations EOF
  * client-declarations :== <nil>
@@ -92,7 +94,7 @@ read_client_conf(void)
 			token = peek_token(&val, cfile);
 			if (token == EOF)
 				break;
-			parse_client_statement(cfile);
+			parse_client_statement(cfile, 0);
 		} while (1);
 		token = next_token(&val, cfile); /* Clear the peek buffer */
 		fclose(cfile);
@@ -152,6 +154,7 @@ read_client_leases(void)
  *	TOK_BACKOFF_CUTOFF number |
  *	TOK_INITIAL_INTERVAL number |
  *	TOK_RENEWAL_HACK number |
+ *	TOK_GATEWAY_PRIORITY number |
  *	TOK_SCRIPT string |
  *	interface-declaration |
  *	TOK_LEASE client-lease-statement |
@@ -159,7 +162,7 @@ read_client_leases(void)
  *	TOK_REJECT reject-statement
  */
 void
-parse_client_statement(FILE *cfile)
+parse_client_statement(FILE *cfile, int type)
 {
 	char *val;
 	int token, code;
@@ -226,6 +229,14 @@ parse_client_statement(FILE *cfile)
 		return;
 	case TOK_RENEWAL_HACK:
 		parse_lease_time(cfile, &config->renewal_hack);
+		return;
+	case TOK_GATEWAY_PRIORITY:
+		if (type == INTERFACE_DECL)
+			parse_gateway_priority(cfile);
+		else {
+			parse_warn("gateway-priority not allowed here.");
+			skip_to_semi(cfile);
+		}
 		return;
 	case TOK_SCRIPT:
 		config->script_name = parse_string(cfile);
@@ -380,7 +391,7 @@ parse_interface_declaration(FILE *cfile)
 		}
 		if (token == '}')
 			break;
-		parse_client_statement(cfile);
+		parse_client_statement(cfile, INTERFACE_DECL);
 	} while (1);
 	token = next_token(&val, cfile);
 }
@@ -771,6 +782,34 @@ parse_string_list(FILE *cfile, struct string_list **lp, int multiple)
 
 	if (token != ';') {
 		parse_warn("expecting semicolon.");
+		skip_to_semi(cfile);
+	}
+}
+
+void
+parse_gateway_priority(FILE *cfile)
+{
+	char *val;
+	const char *errstr;
+	u_char number;
+
+	if (next_token(&val, cfile) != TOK_NUMBER) {
+		parse_warn("Expecting number.");
+		skip_to_semi(cfile);
+		return;
+	}
+	
+	number = strtonum(val, 0, RTP_MAX, &errstr);
+	if (errstr) {
+		parse_warn("number is %s", errstr);
+		skip_to_semi(cfile);
+		return;
+	}
+	
+	priority = number;
+	
+	if (next_token(&val, cfile) != ';') {
+		parse_warn("expecting semicolor.");
 		skip_to_semi(cfile);
 	}
 }
