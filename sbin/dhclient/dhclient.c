@@ -1597,6 +1597,12 @@ script_init(char *reason, struct string_list *medium)
 void
 priv_script_init(char *reason, char *medium)
 {
+	struct string_list *cur;
+	struct fqdn_host *fqdn;
+	struct zone_info *zone;
+	struct auth_key *key;
+	int i;
+
 	client->scriptEnvsize = 100;
 	if (client->scriptEnv == NULL)
 		client->scriptEnv =
@@ -1613,6 +1619,16 @@ priv_script_init(char *reason, char *medium)
 	script_set_env("", "interface", ifi->name, 0);
 	if (priority)
 		script_set_env("", "priority", NULL, priority);
+
+        for (cur = ifi->fqdns, i = 1; cur; cur = cur->next, i++) {
+                fqdn = (struct fqdn_host *) cur->string;
+		zone = fqdn->zone;
+		key = zone->key;
+		script_set_env("", "fqdn", fqdn->name, i);
+		script_set_env("", "zone", zone->name, i);
+		script_set_env("", "key", key->name, i);
+		script_set_env("", "secret", key->secret, i);
+        }
 
 	if (medium)
 		script_set_env("", "medium", medium, 0);
@@ -1727,6 +1743,9 @@ supersede:
 		}
 	}
 	script_set_env(prefix, "expiry", NULL, lease->expiry);
+	script_set_env(prefix, "renewal", NULL, config->renewal_hack ?
+		MIN(config->renewal_hack, MAX_LEASE_TIME) : lease->renewal
+		- cur_time);
 }
 
 void

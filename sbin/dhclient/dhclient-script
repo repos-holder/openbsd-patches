@@ -37,6 +37,23 @@ add_new_address() {
 
 	# XXX Original TIMEOUT code did not do this unless $new_routers was set?
 	route add $new_ip_address 127.0.0.1 >/dev/null 2>&1
+
+	i=1
+	while [ "$(eval "echo \$fqdn$i")" != "" ]; do
+		fqdn=$(eval "echo \$fqdn$i")
+		zone=$(eval "echo \$zone$i")
+		key=$(eval "echo \$key$i")
+		secret=$(eval "echo \$secret$i")
+
+		nsupdate -d << EOF
+		key $key $secret
+		zone $zone
+		update delete $fqdn a
+		update add $fqdn $new_renewal in a $new_ip_address
+		send
+EOF
+		i=$(($i + 1))
+	done
 }
 
 delete_old_alias() {

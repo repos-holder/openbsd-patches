@@ -326,10 +326,12 @@ static const struct keywords {
 	{ "fddi",				TOK_FDDI },
 	{ "filename",				TOK_FILENAME },
 	{ "fixed-address",			TOK_FIXED_ADDR },
+	{ "fqdn",                               TOK_FQDN },
 	{ "gateway-priority",			TOK_GATEWAY_PRIORITY },
 	{ "hardware",				TOK_HARDWARE },
 	{ "initial-interval",			TOK_INITIAL_INTERVAL },
 	{ "interface",				TOK_INTERFACE },
+	{ "key",				TOK_KEY },
 	{ "lease",				TOK_LEASE },
 	{ "link-timeout",			TOK_LINK_TIMEOUT },
 	{ "media",				TOK_MEDIA },
@@ -345,12 +347,14 @@ static const struct keywords {
 	{ "require",				TOK_REQUIRE },
 	{ "retry",				TOK_RETRY },
 	{ "script",				TOK_SCRIPT },
+	{ "secret",				TOK_SECRET },
 	{ "select-timeout",			TOK_SELECT_TIMEOUT },
 	{ "send",				TOK_SEND },
 	{ "server-name",			TOK_SERVER_NAME },
 	{ "supersede",				TOK_SUPERSEDE },
 	{ "timeout",				TOK_TIMEOUT },
-	{ "token-ring",				TOK_TOKEN_RING }
+	{ "token-ring",				TOK_TOKEN_RING },
+	{ "zone",				TOK_ZONE }
 };
 
 int

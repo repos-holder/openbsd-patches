@@ -80,6 +80,10 @@
 #define TOK_LINK_TIMEOUT	294
 #define TOK_RENEWAL_HACK	295
 #define TOK_GATEWAY_PRIORITY	296
+#define TOK_KEY			297
+#define TOK_SECRET		299
+#define TOK_ZONE		300
+#define TOK_FQDN		301
 
 #define is_identifier(x)	((x) >= TOK_FIRST_TOKEN &&	\
 				 (x) != TOK_STRING &&	\

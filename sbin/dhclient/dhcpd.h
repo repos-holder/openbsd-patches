@@ -87,7 +87,10 @@ struct option_data {
 
 struct string_list {
 	struct string_list	*next;
-	char			string[1];	/* Actually bigger. */
+	union {
+		char	string[1];	/* Actually bigger */
+		void	*data;
+	};
 };
 
 struct iaddr {
@@ -104,6 +107,19 @@ struct hardware {
 	u_int8_t htype;
 	u_int8_t hlen;
 	u_int8_t haddr[16];
+};
+
+struct auth_key {
+	char *name;
+	char *secret;
+};
+struct zone_info {
+	char *name;
+	struct auth_key *key;
+};
+struct fqdn_host {
+	char *name;
+	struct zone_info *zone;
 };
 
 struct client_lease {
@@ -181,6 +197,7 @@ struct client_state {
 struct interface_info {
 	struct hardware		 hw_address;
 	struct in_addr		 primary_address;
+	struct string_list	 *fqdns;
 	char			 name[IFNAMSIZ];
 	int			 rfdesc;
 	int			 wfdesc;
@@ -241,6 +258,9 @@ int parse_ip_addr(FILE *, struct iaddr *);
 void parse_hardware_param(FILE *, struct hardware *);
 void parse_lease_time(FILE *, time_t *);
 void parse_gateway_priority(FILE *);
+void parse_key(FILE *cfile);
+void parse_zone(FILE *cfile);
+void parse_fqdn(FILE *cfile);
 int parse_numeric_aggregate(FILE *, unsigned char *, int, int, int);
 void convert_num(unsigned char *, char *, int, int);
 time_t parse_date(FILE *);

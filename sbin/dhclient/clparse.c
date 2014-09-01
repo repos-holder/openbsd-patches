@@ -48,6 +48,8 @@ static const char rcsid[] = "$ABSD$";
 
 #include <net/route.h>
 
+struct string_list *keys, *zones, *fqdns;
+
 /*
  * client-conf-file :== client-declarations EOF
  * client-declarations :== <nil>
@@ -155,6 +157,9 @@ read_client_leases(void)
  *	TOK_INITIAL_INTERVAL number |
  *	TOK_RENEWAL_HACK number |
  *	TOK_GATEWAY_PRIORITY number |
+ *	TOK_KEY key-definition |
+ *	TOK_ZONE zone-definition |
+ *	TOK_FQDN string |
  *	TOK_SCRIPT string |
  *	interface-declaration |
  *	TOK_LEASE client-lease-statement |
@@ -238,6 +243,26 @@ parse_client_statement(FILE *cfile, int type)
 			skip_to_semi(cfile);
 		}
 		return;
+	case TOK_KEY:
+		if (type != INTERFACE_DECL)
+			parse_key(cfile);
+		else {
+			parse_warn("key definition not allowed here.");
+			skip_to_semi(cfile);
+		}
+		return;
+        case TOK_ZONE:
+		parse_zone(cfile);
+                return;
+        case TOK_FQDN:
+		/* hosts must be set per iface */
+                if (type == INTERFACE_DECL)
+                        parse_fqdn(cfile);
+                else {
+                        parse_warn("fqdn definition not allowed here.");  
+                        skip_to_semi(cfile);
+                }
+                return;
 	case TOK_SCRIPT:
 		config->script_name = parse_string(cfile);
 		return;
@@ -391,6 +416,7 @@ parse_interface_declaration(FILE *cfile)
 		}
 		if (token == '}')
 			break;
+		ifi->fqdns = NULL;
 		parse_client_statement(cfile, INTERFACE_DECL);
 	} while (1);
 	token = next_token(&val, cfile);
@@ -812,6 +838,299 @@ parse_gateway_priority(FILE *cfile)
 		parse_warn("expecting semicolor.");
 		skip_to_semi(cfile);
 	}
+}
+
+/* key-statements :== key-statement |
+                      key-statement key-statements
+   key-statement :==
+        secret-definition SEMI
+   secret-definition :== SECRET STRING */
+void
+parse_key(FILE *cfile)
+{
+	char *val;
+	struct auth_key *key;
+	struct string_list *cur, *tmp = NULL;
+	size_t size;
+
+        if (next_token(&val, cfile) != TOK_STRING) {
+		parse_warn("expecting name.\n");
+		goto fail;
+	}
+
+        for (cur = keys; cur; cur = cur->next) {
+		key = (struct auth_key *) cur->string;
+                if (!strcmp(key->name, val)) {
+                	parse_warn("key %s is already defined.\n", val);
+			goto fail;
+                }
+		tmp = cur;
+        }
+	if (!cur)
+		cur = tmp;
+
+	size = sizeof(struct string_list) + sizeof(struct auth_key)
+		+ strlen(val) + 1;
+	tmp = malloc(size);
+	if (!tmp) {
+		parse_warn("no memory for key.\n");
+		goto fail;
+	}
+	tmp->next = NULL;
+	tmp->data = (char *) tmp + sizeof(struct string_list);
+	key = (struct auth_key *) tmp->string;
+	key->secret = NULL;
+	key->name = (char *) tmp + (size - (strlen(val) + 1));
+	strlcpy(key->name, val, strlen(val) + 1);
+	
+	if (next_token(&val, cfile) != '{') {
+		parse_warn("expecting left brace.\n");
+		goto fail;
+	}
+	
+	do {
+		switch(next_token(&val, cfile)) {
+			case TOK_SECRET:
+                                if (key->secret) {
+                                        parse_warn("key %s: too many secrets\n",
+                                                key->name);
+					goto fail;
+				}
+				if (next_token(&val, cfile) != TOK_STRING) {
+					parse_warn("expecting secret.\n");
+					goto fail;
+				}
+				key->secret = malloc(strlen(val) + 1);
+				if (!key->secret) {
+					parse_warn("no memory for secret.\n");
+                			goto fail;
+				}
+				strlcpy(key->secret, val, strlen(val) + 1);
+				if (next_token(&val, cfile) != ';') {
+					parse_warn("expecting semicolor.\n");
+					goto fail;
+				}
+			break;
+			case '}':
+			goto process;
+			default:
+				parse_warn("wrong key declaration.\n");
+				goto fail;
+		}
+	} while(1);
+
+process:
+	if (!key->secret) {
+		parse_warn("missing secret.\n");
+		goto fail;
+	}
+
+	cur ? (cur->next = tmp) : (keys = tmp);
+	return;
+fail:
+	skip_to_semi(cfile);
+	return;
+}
+/* zone-statements :== zone-statement |
+                      zone-statement zone-statements
+   zone-statement :==
+        KEY key-name SEMI */
+void
+parse_zone(FILE *cfile)
+{
+        char *val;
+	struct auth_key *key;
+        struct zone_info *zone;
+        struct string_list *cur, *tmp = NULL, *tmp2;
+        size_t size;
+
+	if (!keys) {
+		parse_warn("no keys defined.\n");
+		goto fail;
+	}
+
+        if (next_token(&val, cfile) != TOK_STRING) {
+                parse_warn("expecting name.\n");
+		goto fail;
+        }
+
+        for (cur = zones; cur; cur = cur->next) {
+                zone = (struct zone_info *) cur->string;
+                if (!strcmp(zone->name, val)) {
+                        parse_warn("zone %s is already defined.\n", val);
+                        goto fail;
+                }
+		tmp = cur;
+        }
+	if (!cur)
+		cur = tmp;
+
+        size = sizeof(struct string_list) + sizeof(struct zone_info)
+                + strlen(val) + 1;
+        tmp = malloc(size);
+        if (!tmp) {
+                parse_warn("no memory for zone.\n");  
+		goto fail;
+        }
+	tmp->next = NULL;
+        tmp->data = (char *) tmp + sizeof(struct string_list);
+        zone = (struct zone_info *) tmp->string;
+	zone->key = NULL;
+        zone->name = (char *) tmp + (size - (strlen(val) + 1));
+        strlcpy(zone->name, val, strlen(val) + 1);
+
+        if (next_token(&val, cfile) != '{') {
+                parse_warn("expecting left brace.\n");
+		goto fail;
+        }
+
+        do {
+                switch(next_token(&val, cfile)) {
+                        case TOK_KEY:
+                                if (zone->key) {
+                                        parse_warn("zone %s: too many keys\n",                                                             
+                                                zone->name);
+					goto fail;
+                                }
+                                if (next_token(&val, cfile) != TOK_STRING) {
+                                        parse_warn("expecting key.\n");
+					goto fail;
+                                }
+                		for (tmp2 = keys; tmp2; tmp2 = tmp2->next) {
+					key = (struct auth_key *) tmp2->string;
+                        		if (!strcmp(key->name, val))
+						goto found;
+				}
+				parse_warn("no such key found.\n");
+fail:
+				skip_to_semi(cfile);               
+        			return;
+found:
+	                        zone->key = key;
+                                if (next_token(&val, cfile) != ';') {
+                                        parse_warn("expecting semicolor.\n");
+					goto fail;
+                                }                                                              
+                        break;
+                        case '}':
+			goto process;
+                        default:
+                                parse_warn("wrong zone declaration.\n");
+				goto fail;
+		}
+        } while(1);
+                                        
+process:
+	if (!zone->key) {
+		parse_warn("missing key.\n");
+		goto fail;
+	}
+
+        cur ? (cur->next = tmp) : (zones = tmp);
+}
+/* fqdn-host :==
+        FQDN fqdn-name SEMI */
+void
+parse_fqdn(FILE *cfile)
+{
+        char *val;
+	struct zone_info *zone;
+	struct fqdn_host *fqdn;
+	struct string_list *cur, *tmp = NULL, *tmp2;
+	size_t size;
+
+	if (!zones) {
+		parse_warn("no zones defined.\n");
+		goto fail;
+	}
+        
+        if (next_token(&val, cfile) != TOK_STRING) {
+                parse_warn("Expecting name.\n");
+                skip_to_semi(cfile);
+                return;
+        }
+
+	for (cur = fqdns; cur; cur = cur->next) {
+		fqdn = (struct fqdn_host *) cur->string;
+		if (!strcmp(fqdn->name, val)) {
+			parse_warn("fqdn %s: already defined.\n",
+				val);
+			goto fail;
+		}
+		tmp = cur;
+        }
+	if (!cur)
+		cur = tmp;
+
+	size = sizeof(struct string_list)
+                + sizeof(struct fqdn_host) + strlen(val) + 1;
+	tmp = malloc(size);
+        if (!tmp) {
+                parse_warn("no memory for fqdn.\n");
+                goto fail;
+        }
+        tmp->next = NULL;
+	tmp->data = (char *) tmp + sizeof(struct string_list);
+        fqdn = (struct fqdn_host *) tmp->string;
+	fqdn->zone = NULL;
+	fqdn->name = (char *) tmp + (size - (strlen(val) + 1));
+        strlcpy(fqdn->name, val, strlen(val) + 1);
+
+        if (next_token(&val, cfile) != '{') {
+                parse_warn("expecting left brace.\n");
+                goto fail;
+        }
+
+        do {
+                switch(next_token(&val, cfile)) {
+                        case TOK_ZONE:
+                                if (fqdn->zone) {
+                                        parse_warn("fqdn %s: too many zones\n",
+                                                fqdn->name);
+                                        goto fail;
+                                }
+                                if (next_token(&val, cfile) != TOK_STRING) {
+                                        parse_warn("expecting key.\n");
+                                        goto fail;
+                                }
+        			for (tmp2 = zones; tmp2; tmp2 = tmp2->next) {
+                			zone = (struct zone_info *) tmp2->string;
+                			if (!strcmp(zone->name, val))
+                        			goto found;
+        			}
+        			parse_warn("fqdn %s: no matching zone found.\n",
+                			val);
+fail:
+                                skip_to_semi(cfile);
+                                return;
+found:
+				fqdn->zone = zone;
+                                if (next_token(&val, cfile) != ';') {
+                                        parse_warn("expecting semicolor.\n");
+                                        goto fail;
+                                }
+                        break;
+                        case '}':
+                        goto process;
+                        default:
+                                parse_warn("wrong fqdn declaration.\n");
+                                goto fail;
+                }
+        } while(1);
+
+process:
+        if (!fqdn->zone) {
+                parse_warn("missing zone.\n");
+                goto fail;
+        }
+		
+	cur ? (cur->next = tmp) : (cur = fqdns = tmp);
+
+	tmp = NULL;
+	if (ifi->fqdns)
+		for (tmp = ifi->fqdns; tmp->next; tmp = tmp->next)
+			;
+	tmp ? (tmp->next = cur) : (ifi->fqdns = cur);
 }
 
 void

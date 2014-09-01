@@ -219,6 +219,40 @@ One use for this statement is to send information to the server
 that will allow it to differentiate between this client and other
 clients or kinds of clients.
 .El
+.Sh DYNAMIC DNS
+The client now has some very limited support for doing DNS updates
+when a lease is acquired.   It only works if you happen to have control
+over your DNS server.
+.Pp
+Unlike vanilla ISC dhclient, this implementation uses 
+.Xr nsupdate 8 
+utility for doing zone updates. Please refer it's
+documentation regarding authentication and key.
+.Pp
+To make it work, you have to declare a key and zone:
+.Bd -literal
+key "DHCP_UPDATER" {
+	secret "pRP5FapFoJ95JEL06sv4PQ==";
+};
+zone "example.org" {
+	key "DHCP_UPDATER";
+};
+
+You also need to set the fqdn on needed interface, as follows:
+
+interface ...
+ 	fqdn "host.example.org." {
+  		zone "example.com";
+ 	};
+};
+.Ed
+.Pp
+The 
+.Ic fqdn 
+name 
+.Ar MUST
+be a fully-qualified domain
+name.
 .Sh OPTION MODIFIERS
 In some cases, a client may receive option data from the server which
 is not really appropriate for that client, or may not receive
