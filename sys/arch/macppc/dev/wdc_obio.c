@@ -69,6 +69,10 @@ struct wdc_obio_softc {
 	int sc_use_dma;
 	bus_size_t sc_cmdsize;
 	size_t sc_dmasize;
+	
+	u_int sc_piotiming[2];
+	u_int sc_dmatiming[2];
+	void (*sc_ata6_adjust_timing)(struct channel_softc *, int);
 };
 
 u_int8_t wdc_obio_read_reg(struct channel_softc *, enum wdc_regs);
@@ -98,7 +102,8 @@ void	wdc_obio_dma_start(void *, int, int);
 int	wdc_obio_dma_finish(void *, int, int, int);
 void	wdc_obio_adjust_timing(struct channel_softc *);
 void	wdc_obio_ata4_adjust_timing(struct channel_softc *);
-void	wdc_obio_ata6_adjust_timing(struct channel_softc *);
+void	wdc_obio_ata6_adjust_timing(struct channel_softc *, int);
+void    wdc_obio_ata6_set_modes(struct channel_softc *);
 
 int
 wdc_obio_probe(struct device *parent, void *match, void *aux)
@@ -200,7 +205,7 @@ wdc_obio_attach(struct device *parent, struct device *self, void *aux)
 			sc->sc_wdcdev.cap |= WDC_CAPABILITY_UDMA |
 			    WDC_CAPABILITY_MODE;
 			sc->sc_wdcdev.UDMA_cap = 5;
-			sc->sc_wdcdev.set_modes = wdc_obio_ata6_adjust_timing;
+			sc->sc_wdcdev.set_modes = wdc_obio_ata6_set_modes;
 		}
 	}
 	sc->sc_wdcdev.cap |= WDC_CAPABILITY_DATA16;
@@ -212,6 +217,7 @@ wdc_obio_attach(struct device *parent, struct device *self, void *aux)
 	sc->sc_wdcdev.dma_init = wdc_obio_dma_init;
 	sc->sc_wdcdev.dma_start = wdc_obio_dma_start;
 	sc->sc_wdcdev.dma_finish = wdc_obio_dma_finish;
+	sc->sc_ata6_adjust_timing = wdc_obio_ata6_adjust_timing;
 	chp->channel = 0;
 	chp->wdc = &sc->sc_wdcdev;
 
@@ -224,7 +230,8 @@ wdc_obio_attach(struct device *parent, struct device *self, void *aux)
 	}
 
 	wdcattach(chp);
-	sc->sc_wdcdev.set_modes(chp);
+	if (sc->sc_wdcdev.set_modes != wdc_obio_ata6_set_modes)
+		sc->sc_wdcdev.set_modes(chp);
 	wdc_print_current_modes(chp);
 }
 
@@ -468,67 +475,84 @@ wdc_obio_ata4_adjust_timing(struct channel_softc *chp)
 }
 
 void
-wdc_obio_ata6_adjust_timing(struct channel_softc *chp)
+wdc_obio_ata6_adjust_timing(struct channel_softc *chp, int drive)
 {
-	struct ata_drive_datas *drvp;
-	u_int conf, conf1;
-	int drive;
+	void *v;
+	struct wdc_obio_softc *sc = v;
+	struct ata_drive_datas *drvp = &chp->ch_drive[drive];
 	int piomode = -1, dmamode = -1;
 	int udmamode = -1;
 
-	for (drive = 0; drive < 2; drive++) {
-		drvp = &chp->ch_drive[drive];
-		if ((drvp->drive_flags & DRIVE) == 0)
-			continue;
-		if (piomode == -1 || piomode > drvp->PIO_mode)
-			piomode = drvp->PIO_mode;
-		if (drvp->drive_flags & DRIVE_DMA) {
-			if (dmamode == -1 || dmamode > drvp->DMA_mode)
-				dmamode = drvp->DMA_mode;
-		}
-		if (drvp->drive_flags & DRIVE_UDMA) {
-			if (udmamode == -1 || udmamode > drvp->UDMA_mode)
-				udmamode = drvp->UDMA_mode;
-		} else
-			udmamode = -2;
+	if ((drvp->drive_flags & DRIVE) == 0)
+		return;
+	if (piomode == -1 || piomode > drvp->PIO_mode)
+		piomode = drvp->PIO_mode;
+	if (drvp->drive_flags & DRIVE_DMA) {
+		if (dmamode == -1 || dmamode > drvp->DMA_mode)
+			dmamode = drvp->DMA_mode;
 	}
+	if (drvp->drive_flags & DRIVE_UDMA) {
+		if (udmamode == -1 || udmamode > drvp->UDMA_mode)
+			udmamode = drvp->UDMA_mode;
+	} else
+		udmamode = -2;
 	if (piomode == -1)
 		return; /* No drive */
-	for (drive = 0; drive < 2; drive++) {
-		drvp = &chp->ch_drive[drive];
-		if (drvp->drive_flags & DRIVE) {
-			drvp->PIO_mode = piomode;
-			if (drvp->drive_flags & DRIVE_DMA)
-				drvp->DMA_mode = dmamode;
-			if (drvp->drive_flags & DRIVE_UDMA) {
-				if (udmamode == -2)
-					drvp->drive_flags &= ~DRIVE_UDMA;
-				else
-					drvp->UDMA_mode = udmamode;
-			}
+	if (drvp->drive_flags & DRIVE) {
+		drvp->PIO_mode = piomode;
+		if (drvp->drive_flags & DRIVE_DMA)
+			drvp->DMA_mode = dmamode;
+		if (drvp->drive_flags & DRIVE_UDMA) {
+			if (udmamode == -2)
+				drvp->drive_flags &= ~DRIVE_UDMA;
+			else
+				drvp->UDMA_mode = udmamode;
 		}
 	}
 
 	if (udmamode == -2)
 		udmamode = -1;
 
-	conf = bus_space_read_4(chp->cmd_iot, chp->cmd_ioh, CONFIG_REG);
-	conf1 = bus_space_read_4(chp->cmd_iot, chp->cmd_ioh,
+	sc->sc_piotiming[drive] = bus_space_read_4(chp->cmd_iot, chp->cmd_ioh, CONFIG_REG);
+	sc->sc_dmatiming[drive] = bus_space_read_4(chp->cmd_iot, chp->cmd_ioh,
 	    KAUAI_ULTRA_CONFIG);
-
-	conf = (conf & ~KAUAI_PIO_MASK) | kauai_pio_timing[piomode];
+		
+	sc->sc_piotiming[drive] = (sc->sc_piotiming[drive] & ~KAUAI_PIO_MASK) | 
+	    kauai_pio_timing[piomode];
 
 	if (dmamode != -1)
-		conf = (conf & ~KAUAI_DMA_MASK) | kauai_dma_timing[dmamode];
+		sc->sc_piotiming[drive] = (sc->sc_piotiming[drive] & ~KAUAI_DMA_MASK) | 
+		    kauai_dma_timing[dmamode];
 	if (udmamode != -1)
-		conf1 = (conf1 & ~KAUAI_UDMA_MASK) |
+		sc->sc_dmatiming[drive] = (sc->sc_dmatiming[drive] & ~KAUAI_UDMA_MASK) |
 		    kauai_udma_timing[udmamode] | KAUAI_UDMA_EN;
 	else 
-		conf1 = conf1 & ~KAUAI_UDMA_EN;
+		sc->sc_dmatiming[drive] = sc->sc_dmatiming[drive] & ~KAUAI_UDMA_EN;
 
+#if 0
 	bus_space_write_4(chp->cmd_iot, chp->cmd_ioh, CONFIG_REG, conf);
 	bus_space_write_4(chp->cmd_iot, chp->cmd_ioh, KAUAI_ULTRA_CONFIG,
 	    conf1);
+#endif
+}
+
+void
+wdc_obio_ata6_set_modes(struct channel_softc *chp)
+{
+	void *v;
+	struct wdc_obio_softc *sc = v;
+	struct ata_drive_datas *drvp;
+	int drive;
+	
+	for (drive = 0; drive < 2; drive++) {
+		drvp = &chp->ch_drive[drive];
+		if (drvp->drive_flags & DRIVE) {
+			(*sc->sc_ata6_adjust_timing)(chp, drive);
+			bus_space_write_4(chp->cmd_iot, chp->cmd_ioh, CONFIG_REG, sc->sc_piotiming[drive]);
+			bus_space_write_4(chp->cmd_iot, chp->cmd_ioh, KAUAI_ULTRA_CONFIG,
+				sc->sc_dmatiming[drive]);
+		}
+	}
 }
 
 int
