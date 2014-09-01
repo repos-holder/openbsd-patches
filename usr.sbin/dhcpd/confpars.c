@@ -40,6 +40,9 @@
 #include "dhcpd.h"
 #include "dhctoken.h"
 
+extern struct hash_table *host_hw_addr_hash;
+struct host_decl *list_host = NULL;
+
 /* conf-file :== parameters declarations EOF
    parameters :== <nil> | parameter | parameters parameter
    declarations :== <nil> | declaration | declarations declaration */
@@ -178,6 +181,10 @@ int parse_statement(cfile, group, type, host_decl, declaration)
 	struct tree *tree;
 	struct tree_cache *cache;
 	struct hardware hardware;
+	struct hardware_entry {
+		u_int8_t hlen;
+		u_int8_t haddr[16];
+	};
 
 	switch (next_token(&val, cfile)) {
 	case TOK_HOST:
@@ -369,8 +376,34 @@ int parse_statement(cfile, group, type, host_decl, declaration)
 
 	case TOK_HARDWARE:
 		parse_hardware_param(cfile, &hardware);
-		if (host_decl)
+		if (host_decl) {
+			if (hardware.hlen) {
+				struct host_decl *hp = NULL;
+				if (!host_hw_addr_hash)
+					host_hw_addr_hash = new_hash();
+				else
+					hp = (struct host_decl *)hash_lookup(host_hw_addr_hash,
+					    hardware.haddr, hardware.hlen);
+				if (hp) {
+					/* dupe hw eth in new host declaration */
+					if (hp != host_decl)
+						list_host = hp;
+				}
+				else {
+					/* each new 'hardware ethernet' to the hash table
+					 * for fixed leases lookup */
+					struct hardware_entry *hardware_entry =
+						malloc(sizeof(struct hardware_entry));
+					if (!hardware_entry)
+						parse_warn("no memory for hardware ethernet entry.\n");
+					memcpy(hardware_entry, (struct hardware_entry *) &hardware,
+						sizeof(struct hardware_entry));
+					add_hash(host_hw_addr_hash, hardware_entry->haddr,
+						hardware_entry->hlen, (unsigned char *)host_decl);
+				}
+			}
 			host_decl->interface = hardware;
+		}
 		else
 			parse_warn("hardware address parameter %s",
 				    "not allowed here.");

@@ -42,7 +42,7 @@
 
 struct subnet *subnets;
 static struct shared_network *shared_networks;
-static struct hash_table *host_hw_addr_hash;
+struct hash_table *host_hw_addr_hash;
 static struct hash_table *host_uid_hash;
 static struct hash_table *lease_uid_hash;
 static struct hash_table *lease_ip_addr_hash;
@@ -53,6 +53,7 @@ static struct hash_table *vendor_class_hash;
 static struct hash_table *user_class_hash;
 
 extern int syncsend;
+extern struct host_decl *list_host;
 
 void
 enter_host(struct host_decl *hd)
@@ -60,30 +61,16 @@ enter_host(struct host_decl *hd)
 	struct host_decl *hp = NULL, *np = NULL;
 
 	hd->n_ipaddr = NULL;
-	if (hd->interface.hlen) {
-		if (!host_hw_addr_hash)
-			host_hw_addr_hash = new_hash();
-		else
-			hp = (struct host_decl *)hash_lookup(host_hw_addr_hash,
-			    hd->interface.haddr, hd->interface.hlen);
-
-		/*
-		 * If there isn't already a host decl matching this
-		 * address, add it to the hash table.
-		 */
-		if (!hp)
-			add_hash(host_hw_addr_hash, hd->interface.haddr,
-			    hd->interface.hlen, (unsigned char *)hd);
-	}
 
 	/*
 	 * If there was already a host declaration for this hardware
 	 * address, add this one to the end of the list.
 	 */
-	if (hp) {
-		for (np = hp; np->n_ipaddr; np = np->n_ipaddr)
+	if (list_host) {
+		for (np = list_host; np->n_ipaddr; np = np->n_ipaddr)
 			;
 		np->n_ipaddr = hd;
+		list_host = NULL;
 	}
 
 	if (hd->group->options[DHO_DHCP_CLIENT_IDENTIFIER]) {

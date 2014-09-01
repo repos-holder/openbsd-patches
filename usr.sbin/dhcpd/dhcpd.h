@@ -143,9 +143,9 @@ struct packet {
 };
 
 struct hardware {
-	u_int8_t htype;
 	u_int8_t hlen;
 	u_int8_t haddr[16];
+	u_int8_t htype;
 };
 
 /* A dhcp lease declaration structure. */
