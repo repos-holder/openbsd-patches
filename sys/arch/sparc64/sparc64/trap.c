@@ -84,6 +84,10 @@
 #ifdef COMPAT_SVR4_32
 #include <machine/svr4_32_machdep.h>
 #endif
+#ifdef COMPAT_OPENBSD
+#include <compat/openbsd/openbsd_syscall.h>
+extern struct emul emul_openbsd_elf64;
+#endif
 
 #include <sparc64/fpu/fpu_extern.h>
 #include <sparc64/sparc64/cache.h>
@@ -1302,7 +1306,11 @@ syscall(tf, code, pc)
 		break;
 	case SYS___syscall:
 		if (code < nsys &&
-		    callp[code].sy_call != callp[p->p_emul->e_nosys].sy_call)
+		    callp[code].sy_call != callp[p->p_emul->e_nosys].sy_call
+#ifdef COMPAT_OPENBSD
+		    && p->p_emul != &emul_openbsd_elf64
+#endif
+		    )
 			break; /* valid system call */
 		if (tf->tf_out[6] & 1L) {
 			/* longs *are* quadwords */
@@ -1449,9 +1457,17 @@ child_return(arg)
 	userret(p);
 #ifdef KTRACE
 	if (KTRPOINT(p, KTR_SYSRET)) {
+		int sys;
+#ifdef COMPAT_OPENBSD
+		if (p->p_emul == &emul_openbsd_elf64)
+			sys = (p->p_flag & P_PPWAIT) ?
+			    OPENBSD_SYS_vfork : OPENBSD_SYS_fork;
+		else
+#endif
+		sys = (p->p_flag & P_PPWAIT) ? SYS_vfork : SYS_fork;
+
 		KERNEL_PROC_LOCK(p);
-		ktrsysret(p,
-		    (p->p_flag & P_PPWAIT) ? SYS_vfork : SYS_fork, 0, 0);
+		ktrsysret(p, sys, 0, 0);
 		KERNEL_PROC_UNLOCK(p);
 	}
 #endif
