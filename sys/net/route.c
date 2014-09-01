@@ -719,9 +719,6 @@ rtrequest1(int req, struct rt_addrinfo *info, u_int8_t prio,
 	struct sockaddr_rtlabel	*sa_rl;
 #define senderr(x) { error = x ; goto bad; }
 
-	/* XXX hack for 4.4-release */
-	prio = RTP_DEFAULT;
-
 	if ((rnh = rt_gettable(info->rti_info[RTAX_DST]->sa_family, tableid)) ==
 	    NULL)
 		senderr(EAFNOSUPPORT);

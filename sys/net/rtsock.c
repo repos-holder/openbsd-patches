@@ -253,6 +253,9 @@ route_output(struct mbuf *m, ...)
 		}
 	}
 
+	/* make sure that kernel-only bits are not set */
+	rtm->rtm_priority &= RTP_MASK;
+	
 	if (rtm->rtm_priority != 0) {
 		if (rtm->rtm_priority > RTP_MAX) {
 			error = EINVAL;
@@ -262,12 +265,9 @@ route_output(struct mbuf *m, ...)
 	} else if (rtm->rtm_type != RTM_ADD)
 		prio = RTP_ANY;
 	else if (rtm->rtm_flags & RTF_STATIC)
-		prio = RTP_STATIC;
+		prio = 0;
 	else
 		prio = RTP_DEFAULT;
-
-	/* XXX hack for 4.4-release */
-	prio = RTP_DEFAULT;
 
 	bzero(&info, sizeof(info));
 	info.rti_addrs = rtm->rtm_addrs;
@@ -314,7 +314,9 @@ route_output(struct mbuf *m, ...)
 			    &saved_nrt->rt_rmx);
 			saved_nrt->rt_refcnt--;
 			saved_nrt->rt_genmask = genmask;
+			/* write back the priority the kernel used */
 			rtm->rtm_index = saved_nrt->rt_ifp->if_index;
+			rtm->rtm_priority = saved_nrt->rt_priority & RTP_MASK;
 		}
 		break;
 	case RTM_DELETE:
@@ -351,8 +353,10 @@ route_output(struct mbuf *m, ...)
 			/* first find correct priority bucket */
 			rn = rn_mpath_prio(rn, prio);
 			rt = (struct rtentry *)rn;
-			if (prio != RTP_ANY && rt->rt_priority != prio) {
+			if (prio != RTP_ANY &&
+			    (rt->rt_priority & RTP_MASK) != prio) {
 				error = ESRCH;
+				rt->rt_refcnt++;
 				goto flush;
 			}
 
@@ -446,7 +450,7 @@ report:
 			    NULL);
 			rtm->rtm_flags = rt->rt_flags;
 			rtm->rtm_use = 0;
-			rtm->rtm_priority = rt->rt_priority;
+			rtm->rtm_priority = rt->rt_priority & RTP_MASK;
 			rt_getmetrics(&rt->rt_rmx, &rtm->rtm_rmx);
 			rtm->rtm_addrs = info.rti_addrs;
 			break;
@@ -493,6 +497,7 @@ report:
 			rt_setmetrics(rtm->rtm_inits, &rtm->rtm_rmx,
 			    &rt->rt_rmx);
 			rtm->rtm_index = rt->rt_ifp->if_index;
+			rtm->rtm_priority = rt->rt_priority & RTP_MASK;
 			if (rt->rt_ifa && rt->rt_ifa->ifa_rtrequest)
 				rt->rt_ifa->ifa_rtrequest(RTM_ADD, rt, &info);
 			if (genmask)
@@ -510,6 +515,7 @@ report:
 			rt->rt_rmx.rmx_locks &= ~(rtm->rtm_inits);
 			rt->rt_rmx.rmx_locks |=
 			    (rtm->rtm_inits & rtm->rtm_rmx.rmx_locks);
+			rtm->rtm_priority = rt->rt_priority & RTP_MASK;
 			break;
 		}
 		break;
@@ -875,6 +881,7 @@ rt_newaddrmsg(int cmd, struct ifaddr *ifa, int error, struct rtentry *rt)
 			rtm = mtod(m, struct rt_msghdr *);
 			rtm->rtm_index = ifp->if_index;
 			rtm->rtm_flags |= rt->rt_flags;
+			rtm->rtm_priority = rt->rt_priority & RTP_MASK;
 			rtm->rtm_errno = error;
 			rtm->rtm_addrs = info.rti_addrs;
 		}
@@ -954,7 +961,7 @@ sysctl_dumpentry(struct radix_node *rn, void *v)
 		struct rt_msghdr *rtm = (struct rt_msghdr *)w->w_tmem;
 
 		rtm->rtm_flags = rt->rt_flags;
-		rtm->rtm_priority = rt->rt_priority;
+		rtm->rtm_priority = rt->rt_priority & RTP_MASK;
 		rt_getmetrics(&rt->rt_rmx, &rtm->rtm_rmx);
 		rtm->rtm_rmx.rmx_refcnt = rt->rt_refcnt;
 		rtm->rtm_index = rt->rt_ifp->if_index;

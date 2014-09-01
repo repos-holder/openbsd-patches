@@ -164,6 +164,7 @@ struct rtentry {
 #define RTP_DEFAULT	48	/* routes that have nothing set */
 #define RTP_MAX		63	/* maximum priority */
 #define RTP_ANY		64	/* any of the above */
+#define	RTP_MASK	0x7f
 
 /*
  * Routing statistics.
