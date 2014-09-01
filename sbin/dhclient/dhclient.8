@@ -64,6 +64,21 @@ Specify an alternate location,
 .Ar file ,
 for the configuration file.
 .It Fl d
+Force
+.Nm
+to log to
+.Ar stderr .
+This can be useful for debugging, and also at sites where a complete log of
+all dhcp activity must be kept, but
+.Xr syslogd 8
+is not reliable or otherwise cannot be used.
+Normally,
+.Nm
+will log all output using the
+.Xr syslog 3
+function with the log facility set to
+.Dv LOG_DAEMON .
+.It Fl f
 Forces
 .Nm
 to always run as a foreground process.

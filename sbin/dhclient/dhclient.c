@@ -73,6 +73,7 @@ char *path_dhclient_conf = _PATH_DHCLIENT_CONF;
 char *path_dhclient_db = NULL;
 
 int log_perror = 1;
+int no_syslog = 0;
 int privfd;
 int nullfd = -1;
 int no_daemon;
@@ -264,12 +265,15 @@ main(int argc, char *argv[])
 	openlog(__progname, LOG_PID | LOG_NDELAY, DHCPD_LOG_FACILITY);
 	setlogmask(LOG_UPTO(LOG_INFO));
 
-	while ((ch = getopt(argc, argv, "c:dl:qu")) != -1)
+	while ((ch = getopt(argc, argv, "c:dfl:qu")) != -1)
 		switch (ch) {
 		case 'c':
 			path_dhclient_conf = optarg;
 			break;
 		case 'd':
+			/* log_perror = 1; */
+			no_syslog = 1;
+		case 'f':
 			no_daemon = 1;
 			break;
 		case 'l':
@@ -414,7 +418,7 @@ usage(void)
 {
 	extern char	*__progname;
 
-	fprintf(stderr, "usage: %s [-dqu] [-c file] [-l file] interface\n",
+	fprintf(stderr, "usage: %s [-dfqu] [-c file] [-l file] interface\n",
 	    __progname);
 	exit(1);
 }

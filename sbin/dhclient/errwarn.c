@@ -72,7 +72,8 @@ error(char *fmt, ...)
 	va_end(list);
 
 #ifndef DEBUG
-	syslog(LOG_ERR, "%s", mbuf);
+	if (!no_syslog)
+	    syslog(LOG_ERR, "%s", mbuf);
 #endif
 
 	/* Also log it to stderr? */
@@ -81,7 +82,8 @@ error(char *fmt, ...)
 		write(STDERR_FILENO, "\n", 1);
 	}
 
-	syslog(LOG_CRIT, "exiting.");
+	if (!no_syslog)
+	    syslog(LOG_CRIT, "exiting.");
 	if (log_perror) {
 		fprintf(stderr, "exiting.\n");
 		fflush(stderr);
@@ -104,7 +106,8 @@ warning(char *fmt, ...)
 	va_end(list);
 
 #ifndef DEBUG
-	syslog(LOG_ERR, "%s", mbuf);
+	if (!no_syslog)
+	    syslog(LOG_ERR, "%s", mbuf);
 #endif
 
 	if (log_perror) {
@@ -130,7 +133,8 @@ note(char *fmt, ...)
 	va_end(list);
 
 #ifndef DEBUG
-	syslog(LOG_INFO, "%s", mbuf);
+    	if (!no_syslog)
+	    syslog(LOG_INFO, "%s", mbuf);
 #endif
 
 	if (log_perror) {
@@ -156,7 +160,8 @@ debug(char *fmt, ...)
 	va_end(list);
 
 #ifndef DEBUG
-	syslog(LOG_DEBUG, "%s", mbuf);
+	if (!no_syslog)
+	    syslog(LOG_DEBUG, "%s", mbuf);
 #endif
 
 	if (log_perror) {
@@ -222,10 +227,12 @@ parse_warn(char *fmt, ...)
 	va_end(list);
 
 #ifndef DEBUG
-	syslog(LOG_ERR, "%s", mbuf);
-	syslog(LOG_ERR, "%s", token_line);
-	if (lexchar < 81)
-		syslog(LOG_ERR, "%*c", lexchar, '^');
+	if (!no_syslog) {
+	    syslog(LOG_ERR, "%s", mbuf);
+	    syslog(LOG_ERR, "%s", token_line);
+	    if (lexchar < 81)
+		    syslog(LOG_ERR, "%*c", lexchar, '^');
+	}
 #endif
 
 	if (log_perror) {

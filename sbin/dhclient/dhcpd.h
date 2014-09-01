@@ -282,6 +282,7 @@ extern char *path_dhclient_conf;
 extern char *path_dhclient_db;
 extern time_t cur_time;
 extern int log_perror;
+extern int no_syslog;
 extern int routefd;
 
 void dhcpoffer(struct iaddr, struct option_data *);
