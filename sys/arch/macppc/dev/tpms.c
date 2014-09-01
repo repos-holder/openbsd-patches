@@ -232,6 +232,7 @@ static struct tpms_dev tpms_devices[] =
        /* 15 inch PowerBooks */
        POWERBOOK_TOUCHPAD(15, 0x020e, 85, 16, 57), /* XXX Not tested. */
        POWERBOOK_TOUCHPAD(15, 0x020f, 85, 16, 57),
+       POWERBOOK_TOUCHPAD(15, 0x0215, 64, 16, 43),
        /* 17 inch PowerBooks */
        POWERBOOK_TOUCHPAD(17, 0x020d, 71, 26, 68)  /* XXX Not tested. */
 #undef POWERBOOK_TOUCHPAD
@@ -247,9 +248,11 @@ static struct tpms_dev tpms_devices[] =
 /* Device data. */
 struct tpms_softc {
 	struct uhidev sc_hdev;	      /* USB parent (got the struct device). */
+	int is_geyser2;
+	int sc_datalen;
 	int sc_acc[TPMS_SENSORS];     /* Accumulated sensor values. */
-	signed char sc_prev[TPMS_SENSORS];   /* Previous sample. */
-	signed char sc_sample[TPMS_SENSORS]; /* Current sample. */
+	unsigned char sc_prev[TPMS_SENSORS];   /* Previous sample. */
+	unsigned char sc_sample[TPMS_SENSORS]; /* Current sample. */
 	struct device *sc_wsmousedev; /* WSMouse device. */
 	int sc_noise;		      /* Amount of noise. */
 	int sc_threshold;	      /* Threshold value. */
@@ -274,7 +277,7 @@ void tpms_intr(struct uhidev *, void *, unsigned int);
 int tpms_enable(void *);
 void tpms_disable(void *);
 int tpms_ioctl(void *, unsigned long, caddr_t, int, struct proc *);
-void reorder_sample(signed char *, signed char *);
+void reorder_sample(struct tpms_softc *, unsigned char *, unsigned char *);
 int compute_delta(struct tpms_softc *, int *, int *, int *, uint32_t *);
 int detect_pos(int *, int, int, int, int *, int *);
 int smooth_pos(int, int, int);
@@ -351,6 +354,9 @@ tpms_attach(struct device *parent, struct device *self, void *aux)
 	int i;
 	uint16_t vendor, product;
 
+	sc->is_geyser2 = 0;  
+	sc->sc_datalen = TPMS_DATA_LEN;
+
 	/* Fill in device-specific parameters. */
 	if ((udd = usbd_get_device_descriptor(uha->parent->sc_udev)) != NULL) {
 		product = UGETW(udd->idProduct);
@@ -365,6 +371,12 @@ tpms_attach(struct device *parent, struct device *self, void *aux)
 				sc->sc_x_sensors = pd->x_sensors;
 				sc->sc_y_factor = pd->y_factor;
 				sc->sc_y_sensors = pd->y_sensors;
+				if (product == 0x0215) {
+					sc->is_geyser2 = 1;
+					sc->sc_x_sensors = 15;
+					sc->sc_y_sensors = 9;
+					sc->sc_datalen = 64;
+				}
 				break;
 			}
 		}
@@ -479,20 +491,20 @@ void
 tpms_intr(struct uhidev *addr, void *ibuf, unsigned int len)
 {
 	struct tpms_softc *sc = (struct tpms_softc *)addr;
-	signed char *data;
+	unsigned char *data;
 	int dx, dy, dz, i, s;
 	uint32_t buttons;
 
 	/* Ignore incomplete data packets. */
-	if (len != TPMS_DATA_LEN)
+	if (len != sc->sc_datalen)
 		return;
 	data = ibuf;
 
 	/* The last byte is 1 if the button is pressed and 0 otherwise. */
-	buttons = !!data[TPMS_DATA_LEN - 1];
+	buttons = !!data[sc->sc_datalen - 1];
 
 	/* Everything below assumes that the sample is reordered. */
-	reorder_sample(sc->sc_sample, data);
+	reorder_sample(sc, sc->sc_sample, data);
 
 	/* Is this the first sample? */
 	if (!(sc->sc_status & TPMS_VALID)) {
@@ -505,7 +517,8 @@ tpms_intr(struct uhidev *addr, void *ibuf, unsigned int len)
 	}
 	/* Accumulate the sensor change while keeping it nonnegative. */
 	for (i = 0; i < TPMS_SENSORS; i++) {
-		sc->sc_acc[i] += sc->sc_sample[i] - sc->sc_prev[i];
+		sc->sc_acc[i] += 
+			(signed char) (sc->sc_sample[i] - sc->sc_prev[i]);
 		if (sc->sc_acc[i] < 0)
 			sc->sc_acc[i] = 0;
 	}
@@ -534,26 +547,43 @@ tpms_intr(struct uhidev *addr, void *ibuf, unsigned int len)
  */
 
 void 
-reorder_sample(signed char *to, signed char *from)
+reorder_sample(struct tpms_softc *sc, unsigned char *to, unsigned char *from)
 {
 	int i;
 
-	for (i = 0; i < 8; i++) {
-		/* X-sensors. */
-		to[i] = from[5 * i + 2];
-		to[i + 8] = from[5 * i + 4];
-		to[i + 16] = from[5 * i + 42];
+	/* powerbook5,8 and other October 2006 models uses different scheme
+	 * so we check this.
+	 */
+	if (sc->is_geyser2) {
+		int j;
+
+		memset(to, 0, TPMS_SENSORS);
+		for (i = 0, j = 19; i < 20; i += 2, j += 3) {
+			to[i] = from[j];
+			to[i + 1] = from[j + 1];
+		}
+		for (i = 0, j = 1; i < 9; i += 2, j += 3) {
+			to[TPMS_X_SENSORS + i] = from[j];
+			to[TPMS_X_SENSORS + i + 1] = from[j + 1];
+		}
+	} else {
+		for (i = 0; i < 8; i++) {
+			/* X-sensors. */
+			to[i] = from[5 * i + 2];
+			to[i + 8] = from[5 * i + 4];
+			to[i + 16] = from[5 * i + 42];
 #if 0
-		/* 
-		 * XXX This seems to introduce random vertical jumps, so
-		 * we ignore these sensors until we figure out their meaning.
-		 */
-		if (i < 2)
-			to[i + 24] = from[5 * i + 44];
+			/* 
+		 	* XXX This seems to introduce random vertical jumps, so
+		 	* we ignore these sensors until we figure out their meaning.
+		 	*/
+			if (i < 2)
+				to[i + 24] = from[5 * i + 44];
 #endif /* 0 */
-		/* Y-sensors. */
-		to[i + 26] = from[5 * i + 1];
-		to[i + 34] = from[5 * i + 3];
+			/* Y-sensors. */
+			to[i + 26] = from[5 * i + 1];
+			to[i + 34] = from[5 * i + 3];
+		}
 	}
 }
 
