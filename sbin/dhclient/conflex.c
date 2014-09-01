@@ -339,6 +339,7 @@ static const struct keywords {
 	{ "reboot",				TOK_REBOOT },
 	{ "reject",				TOK_REJECT },
 	{ "renew",				TOK_RENEW },
+	{ "renewal-hack", 			TOK_RENEWAL_HACK },
 	{ "request",				TOK_REQUEST },
 	{ "require",				TOK_REQUIRE },
 	{ "retry",				TOK_RETRY },

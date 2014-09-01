@@ -65,6 +65,7 @@ static const char rcsid[] = "$ABSD: dhclient.c,v 1.1.1.1 2008/08/26 14:40:21 roo
 
 #define	CLIENT_PATH 		"PATH=/usr/bin:/usr/sbin:/bin:/sbin"
 #define DEFAULT_LEASE_TIME	43200	/* 12 hours... */
+#define MAX_LEASE_TIME		31622340 /* Cisco gear has this limit ;) */
 #define TIME_MAX		2147483647
 
 time_t cur_time;
@@ -689,12 +690,19 @@ bind_lease(void)
 	client->active = client->new;
 	client->new = NULL;
 
+	time_t renewal_hack =
+	    config->renewal_hack ?
+		config->renewal_hack > MAX_LEASE_TIME ?
+		    MAX_LEASE_TIME + cur_time :
+		    config->renewal_hack + cur_time
+	    : client->active->renewal;
+
 	/* Set up a timeout to start the renewal process. */
-	add_timeout(client->active->renewal, state_bound);
+	add_timeout(renewal_hack, state_bound);
 
 	note("bound to %s -- renewal in %d seconds.",
 	    piaddr(client->active->address),
-	    client->active->renewal - cur_time);
+	    renewal_hack - cur_time);
 	client->state = S_BOUND;
 	reinitialize_interface();
 	go_daemon();

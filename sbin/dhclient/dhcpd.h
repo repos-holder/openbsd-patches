@@ -145,6 +145,7 @@ struct client_config {
 	time_t			 select_interval;
 	time_t			 reboot_timeout;
 	time_t			 backoff_cutoff;
+	time_t			renewal_hack;
 	struct string_list	*media;
 	char			*script_name;
 	enum { IGNORE, ACCEPT, PREFER }

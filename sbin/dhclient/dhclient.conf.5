@@ -160,6 +160,15 @@ statement sets the amount of time to wait for an interface link before timing
 out.
 The default value is 10 seconds, but the special value 0 requests that dhclient
 not wait for a link state change before timing out.
+.It Ic renewal-hack Ar time ;
+The
+.Ic renewal-hack
+workaround may be useful when your ISP's or other DHCP server that you can't
+control ignores client's
+.Ic send
+lease time options. The option will override timeout before next recurrent
+renewal process. By default, the option is disabled. The minimum value is 1
+second. The maximum one is 365 days, 23 hours and 59 minutes.
 .El
 .Sh LEASE REQUIREMENTS AND REQUESTS
 The DHCP protocol allows the client to request that the server send it

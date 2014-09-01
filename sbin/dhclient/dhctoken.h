@@ -78,6 +78,7 @@
 #define TOK_REJECT		292
 #define TOK_FDDI		293
 #define TOK_LINK_TIMEOUT	294
+#define TOK_RENEWAL_HACK	295
 
 #define is_identifier(x)	((x) >= TOK_FIRST_TOKEN &&	\
 				 (x) != TOK_STRING &&	\

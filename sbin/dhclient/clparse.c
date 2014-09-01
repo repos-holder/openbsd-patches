@@ -69,6 +69,7 @@ read_client_conf(void)
 	config->retry_interval = 300;
 	config->backoff_cutoff = 15;
 	config->initial_interval = 3;
+	config->renewal_hack = 0;
 	config->bootp_policy = ACCEPT;
 	config->script_name = _PATH_DHCLIENT_SCRIPT;
 	config->requested_options
@@ -150,6 +151,7 @@ read_client_leases(void)
  *	TOK_REBOOT number |
  *	TOK_BACKOFF_CUTOFF number |
  *	TOK_INITIAL_INTERVAL number |
+ *	TOK_RENEWAL_HACK number |
  *	TOK_SCRIPT string |
  *	interface-declaration |
  *	TOK_LEASE client-lease-statement |
@@ -221,6 +223,9 @@ parse_client_statement(FILE *cfile)
 		return;
 	case TOK_INITIAL_INTERVAL:
 		parse_lease_time(cfile, &config->initial_interval);
+		return;
+	case TOK_RENEWAL_HACK:
+		parse_lease_time(cfile, &config->renewal_hack);
 		return;
 	case TOK_SCRIPT:
 		config->script_name = parse_string(cfile);
