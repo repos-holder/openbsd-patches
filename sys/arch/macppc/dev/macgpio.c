@@ -158,7 +158,7 @@ macgpio_gpio_attach(struct device *parent, struct device *self, void *aux)
 
 
 	sc->sc_port = ((struct gpio_softc *) parent)->sc_port;
-	mac_intr_establish(parent, ca->ca_intr[0], IST_LEVEL, IPL_HIGH,
+	mac_intr_establish(parent, ca->ca_intr[0], IST_EDGE, IPL_HIGH,
 	    gpio_intr, sc, sc->sc_dev.dv_xname);
 
 	printf(" irq %d\n", ca->ca_intr[0]);
