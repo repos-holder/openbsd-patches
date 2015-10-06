@@ -1,0 +1,12 @@
+--- smtpctl/Makefile.orig	Tue Sep 11 15:01:50 2012
++++ smtpctl/Makefile	Tue Sep 11 15:06:11 2012
+@@ -22,5 +22,8 @@ SRCS+=	smtpctl.c util.c
+ SRCS+=	compress_backend.c compress_gzip.c
+ 
+ LDADD+=	-lutil -lz
+-DPADD+=	${LIBUTIL} ${LIBZ}
++LDADD+= -Wl,-Bdynamic -lutil \
++	-Wl,-Bstatic -L../ -lfakeutil \
++	-Wl,-Bdynamic -lz
++DPADD+=	${LIBZ}
+ .include <bsd.prog.mk>

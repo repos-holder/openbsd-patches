@@ -1,0 +1,24 @@
+Various OpenBSD patches
+=======================
+
+MacPPC platform - PowerBook5,8 (Apple PowerBook G4 DL SD 15")
+===========================================
+tpms.diff - Adds trackpad support
+---------------------------------
+Patch dated by 22.01.08. At first was written by myself based on "appletouch" code from Linux kernel but after some time NetBSD commiter called Aymeric Vincent produced logically the same diff for NetBSD's pbms driver in order to add support of powerbook5,8 trackpad. I found that his code is more effective and compact so used it. So let's think that original author of this patch is Aymeric.
+adb.diff & machdep.diff - Apple Desktop Bus patches
+---------------------------------------------------
+powerbook5,8 doesn't have slow ADB bus that Apple used back in time for their HID devices. But adb sends bogus junk that forces PowerBook's PMU to power off the machine. This patch fix it and in addition it fix reboot prevention.
+wdc_obio.diff - Independent UDMA level settings for each of IDE devices
+-----------------------------------------------------------------------
+Was before patching:
+> wd0(wdc0:0:0): using PIO mode 4, DMA mode 2, Ultra-DMA mode 4
+
+> cd0(wdc0:0:1): using PIO mode 4, DMA mode 2, Ultra-DMA mode 4
+
+Now:
+> wd0(wdc0:0:0): using PIO mode 4, DMA mode 2, Ultra-DMA mode 5
+
+> cd0(wdc0:0:1): using PIO mode 4, DMA mode 2, Ultra-DMA mode 4
+
+Code was partially pulled from "kauai" driver in NetBSD.

@@ -1,0 +1,47 @@
+dhclient.conf:
+# dc0 = isp_if
+interface "dc0" {
+	gateway-priority 1;
+}
+
+interface "vether0" {
+	gateway-priority 2;
+}
+
+pf.conf:
+loc_if="dc1"
+#ext2_if="vlan2"
+ext2_if="vether0"
+server="192.168.1.100"
+
+# This table will be populated by dhclient
+#table <gw_vlan2> persist
+table <gw_vether0> persist
+
+# 1:1
+#binat on $isp2_if inet from $server to any -> ($isp2_if:0)
+match on $isp2_if inet from $server to any binat-to ($isp2_if:0)
+
+#pass in on $isp2_if reply-to ($isp2_if <gw_vlan2>) inet from any to $server
+##pass in on $loc_if route-to ($isp2_if <gw_vlan2>) inet from $server to !$loc_if:network
+pass in on $isp2_if inet from any to $server reply-to ($isp2_if <gw_vether0>)
+#pass in on $loc_if inet from $server to !$loc_if:network route-to ($isp2_if <gw_vether0>)
+
+Intefaces:
+ifconfig vether0 create
+ifconfig vether0 lladdr ...
+ifconfig bridge0 create
+ifconfig bridge0 add vether0
+ifconfig bridge0 add dc0
+ifconfig bridge0 up
+dhclient vether0
+
+route -n show | head -n 6
+Routing tables
+
+Internet:
+Destination        Gateway            Flags   Refs      Use   Mtu  Prio Iface
+default            gw_dc0_ip           UGS        7        X     -     1 dc0  
+default            gw_vether0_ip       UGS        0        X     -     2 vether0
+
+Now test a connection from outside to the $isp2_if:0, should go to $server

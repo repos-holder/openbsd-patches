@@ -1,0 +1,12 @@
+--- sparc64/cgram.c.orig	Wed Aug 14 15:39:38 2013
++++ sparc64/cgram.c	Wed Aug 14 15:40:18 2013
+@@ -1989,7 +1989,9 @@ fundef(NODE *tp, NODE *p)
+ 		if (xtemps == 0) alwinl |= 2;
+ 		xtemps = 1;
+ 	}
++	else
+ #endif
++	xtemps = 0;
+ 	prolab = getlab();
+ 	if ((c = cftnsp->soname) == NULL)
+ 		c = addname(exname(cftnsp->sname));

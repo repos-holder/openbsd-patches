@@ -1,0 +1,23 @@
+workaround for 64-bit time_t in recent obsd
+--- parse.c.orig	Mon May  5 22:56:44 2014
++++ /usr/src/sbin/dhclient/parse.c	Thu May  8 17:28:08 2014
+@@ -192,6 +192,7 @@ parse_lease_time(FILE *cfile, time_t *timep)
+ {
+ 	char *val;
+ 	int token;
++	__int32_t time2;
+ 
+ 	token = next_token(&val, cfile);
+ 	if (token != TOK_NUMBER) {
+@@ -199,9 +200,9 @@ parse_lease_time(FILE *cfile, time_t *timep)
+ 		skip_to_semi(cfile);
+ 		return;
+ 	}
+-	convert_num((unsigned char *)timep, val, 10, 32);
++	convert_num((unsigned char *)&time2, val, 10, 32);
+ 	/* Unswap the number - convert_num returns stuff in NBO. */
+-	*timep = ntohl(*timep);	/* XXX */
++	*timep = ntohl(time2);	/* XXX */
+ 
+ 	parse_semi(cfile);
+ }

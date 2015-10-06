@@ -1,0 +1,13 @@
+--- /usr/src/sys/arch/sparc64/conf/files.sparc64.orig	Wed Feb 24 13:48:21 2010
++++ /usr/src/sys/arch/sparc64/conf/files.sparc64	Wed Feb 17 15:48:06 2010
+@@ -184,6 +184,10 @@ device	led
+ attach	led at ebus
+ file	arch/sparc64/dev/led.c			led
+ 
++device	lom
++attach	lom at ebus
++file	arch/sparc64/dev/lom.c			lom
++
+ device	pmc
+ attach	pmc at ebus
+ file	arch/sparc64/dev/pmc.c			pmc

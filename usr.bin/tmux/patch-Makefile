@@ -1,0 +1,10 @@
+--- Makefile.orig	Wed Jan 11 22:06:07 2012
++++ Makefile	Wed Jan 11 22:06:42 2012
+@@ -32,6 +32,7 @@
+ #
+ 
+ .include <bsd.own.mk>	# for NOMAN, if it's there.
++.include "Makefile.tmux"
+ 
+ SUBDIR+= lib include bin libexec sbin usr.bin usr.sbin share games sys
+ 
