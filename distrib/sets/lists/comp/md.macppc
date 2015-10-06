@@ -1,0 +1,4 @@
+./usr/include/altivec.h
+./usr/include/ieeefp.h
+./usr/lib/crtbegin.o
+./usr/lib/crtend.o

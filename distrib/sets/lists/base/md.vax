@@ -1,0 +1,10 @@
+./pcs750.bin
+./sbin/kbd
+./sbin/wsconsctl
+./usr/mdec/boot
+./usr/mdec/hdboot
+./usr/mdec/hpboot
+./usr/mdec/raboot
+./usr/mdec/sdboot
+./usr/mdec/xxboot
+./usr/sbin/wsconscfg

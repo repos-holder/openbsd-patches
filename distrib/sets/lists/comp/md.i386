@@ -1,0 +1,6 @@
+./usr/include/ieeefp.h
+./usr/lib/crtbegin.o
+./usr/lib/crtend.o
+./usr/lib/libi386.a
+./usr/lib/libi386_p.a
+./usr/libdata/lint/llib-li386.ln
